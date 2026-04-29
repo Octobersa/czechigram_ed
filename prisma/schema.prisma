@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  bio       String?  @db.LongText
+  role      String   @default("user")
+  likes     Like[]
+  photos    Photo[]
+  reports   Report[]
+}
+
+model Photo {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  imageUrl    String
+  createdAt   DateTime @default(now())
+  description String?  @db.LongText
+  likes       Like[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports     Report[]
+
+  @@index([userId], map: "Photo_userId_fkey")
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  photoId   Int
+  createdAt DateTime @default(now())
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, photoId])
+  @@index([photoId], map: "Like_photoId_fkey")
+}
+
+model Report {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  photoId   Int
+  reason    String?   @db.LongText
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([photoId], map: "Report_photoId_fkey")
+  @@index([userId], map: "Report_userId_fkey")
+}
+
+model BugConfig {
+
+    bugId     String @id
+    isFixed   Boolean?
+}

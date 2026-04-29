@@ -1,0 +1,89 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: czechigram-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your compose env file}
+      SHADOW_DATABASE_URL: ${SHADOW_DATABASE_URL:?Set SHADOW_DATABASE_URL in your compose env file}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in your compose env file}
+      API_STUDENT_MANAGEMENT_TOKEN: ${API_STUDENT_MANAGEMENT_TOKEN:?Set API_STUDENT_MANAGEMENT_TOKEN in your compose env file}
+      MINIO_API_URL: ${MINIO_API_URL:-http://minio:9000}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-uploads}
+      MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY_ID:?Set MINIO_ACCESS_KEY_ID in your compose env file}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in your compose env file}
+      STUDENT_PRISMA_CACHE_MAX: ${STUDENT_PRISMA_CACHE_MAX:-20}
+      STUDENT_PRISMA_IDLE_MS: ${STUDENT_PRISMA_IDLE_MS:-600000}
+      STUDENT_PRISMA_SWEEP_INTERVAL_MS: ${STUDENT_PRISMA_SWEEP_INTERVAL_MS:-60000}
+      STUDENT_PRISMA_CONNECTION_LIMIT: ${STUDENT_PRISMA_CONNECTION_LIMIT:-1}
+      STUDENT_PRISMA_SCHEMA_CHECK_INTERVAL_MS: ${STUDENT_PRISMA_SCHEMA_CHECK_INTERVAL_MS:-0}
+    ports:
+      - "3010:3000"
+
+  mysql:
+    image: mysql:8.4
+    container_name: czechigram-mysql
+    restart: unless-stopped
+    command:
+      - --max_connections=300
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in your compose env file}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    container_name: czechigram-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in your compose env file}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in your compose env file}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: czechigram-minio-init
+    depends_on:
+      - minio
+    restart: "no"
+    environment:
+      MINIO_API_URL: ${MINIO_API_URL:-http://minio:9000}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-uploads}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in your compose env file}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in your compose env file}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local $$MINIO_API_URL $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing local/$$MINIO_BUCKET_NAME;
+      mc anonymous set public local/$$MINIO_BUCKET_NAME;
+      "
+
+volumes:
+  mysql-data:
+  minio-data:
