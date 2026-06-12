@@ -40,7 +40,15 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto space-y-4" data-test-id="dashboard-content">
-        <NewPostButton onClick={() => router.push(`/${student}/newpost`)}/>
+        <div className="flex gap-2">
+          <NewPostButton onClick={() => router.push(`/${student}/newpost`)}/>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+          >
+            Refresh Feed
+          </button>
+        </div>
 
         <PostList/>
 
